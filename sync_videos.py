@@ -1,27 +1,71 @@
 import os
+import json
 import requests
-import xml.etree.ElementTree as ET
 import yt_dlp
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# --------------------------------
-# CONFIGURATION
-# --------------------------------
+# ------------------------
+# CONFIG
+# ------------------------
 
 CHANNEL_ID = "UC7sDT8jZ76VLV1u__krUutA"
-RSS_URL = f"https://www.youtube.com/feeds/videos.xml?channel_id={CHANNEL_ID}"
+API_URL = f"https://www.youtube.com/feeds/videos.xml?channel_id={CHANNEL_ID}"
 
 DRIVE_FOLDER_ID = "1NqifLrBXJ89eWtzuAW166X7BoRLm2YED"
 
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# --------------------------------
+INDEX_FILE = "video_ids.json"
+
+# ------------------------
+# LOAD INDEX
+# ------------------------
+
+if os.path.exists(INDEX_FILE):
+    with open(INDEX_FILE, "r") as f:
+        known_ids = set(json.load(f))
+else:
+    known_ids = set()
+
+# ------------------------
+# GET VIDEOS FROM RSS
+# ------------------------
+
+import xml.etree.ElementTree as ET
+
+response = requests.get(API_URL)
+root = ET.fromstring(response.content)
+
+namespace = {
+    "yt": "http://www.youtube.com/xml/schemas/2015",
+    "atom": "http://www.w3.org/2005/Atom"
+}
+
+rss_ids = []
+
+for entry in root.findall("atom:entry", namespace):
+    video_id = entry.find("yt:videoId", namespace).text
+    rss_ids.append(video_id)
+
+# ------------------------
+# FIND NEW VIDEOS
+# ------------------------
+
+new_videos = [vid for vid in rss_ids if vid not in known_ids]
+
+print("New videos:", new_videos)
+
+if not new_videos:
+    print("No new videos. Exiting.")
+    exit()
+
+# ------------------------
 # GOOGLE DRIVE AUTH
-# --------------------------------
+# ------------------------
 
 creds = Credentials(
     None,
@@ -33,52 +77,13 @@ creds = Credentials(
 
 drive = build("drive", "v3", credentials=creds)
 
-# --------------------------------
-# GET FILES ALREADY IN DRIVE
-# --------------------------------
+# ------------------------
+# DOWNLOAD + UPLOAD
+# ------------------------
 
-results = drive.files().list(
-    q=f"'{DRIVE_FOLDER_ID}' in parents and trashed=false",
-    fields="files(name)"
-).execute()
+for video_id in new_videos:
 
-drive_files = [f["name"] for f in results.get("files", [])]
-
-print("Files already in Drive:", len(drive_files))
-
-# --------------------------------
-# GET VIDEO IDS FROM RSS
-# --------------------------------
-
-response = requests.get(RSS_URL)
-root = ET.fromstring(response.content)
-
-namespace = {
-    "yt": "http://www.youtube.com/xml/schemas/2015",
-    "atom": "http://www.w3.org/2005/Atom"
-}
-
-videos = []
-
-for entry in root.findall("atom:entry", namespace):
-    video_id = entry.find("yt:videoId", namespace).text
-    videos.append(video_id)
-
-print("Videos in RSS feed:", len(videos))
-
-# --------------------------------
-# PROCESS VIDEOS
-# --------------------------------
-
-for video_id in videos:
-
-    filename = f"{video_id}.mp4"
-
-    if filename in drive_files:
-        print("Skipping:", video_id)
-        continue
-
-    video_url = f"https://youtube.com/watch?v={video_id}"
+    url = f"https://youtube.com/watch?v={video_id}"
 
     print("Downloading:", video_id)
 
@@ -89,20 +94,20 @@ for video_id in videos:
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video_url])
+        ydl.download([url])
 
-    filepath = os.path.join(DOWNLOAD_DIR, filename)
+    filepath = os.path.join(DOWNLOAD_DIR, f"{video_id}.mp4")
 
     if not os.path.exists(filepath):
         print("Download failed:", video_id)
         continue
 
-    print("Uploading:", filename)
+    print("Uploading:", video_id)
 
     media = MediaFileUpload(filepath)
 
     file_metadata = {
-        "name": filename,
+        "name": f"{video_id}.mp4",
         "parents": [DRIVE_FOLDER_ID]
     }
 
@@ -111,4 +116,13 @@ for video_id in videos:
         media_body=media
     ).execute()
 
-print("Sync finished")
+    known_ids.add(video_id)
+
+# ------------------------
+# SAVE INDEX
+# ------------------------
+
+with open(INDEX_FILE, "w") as f:
+    json.dump(sorted(list(known_ids)), f, indent=2)
+
+print("Index updated.")
