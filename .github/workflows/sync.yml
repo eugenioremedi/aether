@@ -17,15 +17,22 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |
-          pip install yt-dlp
-          pip install google-api-python-client
-          pip install google-auth
-          pip install requests
+        run: pip install -r requirements.txt
 
       - name: Run mirror
+        timeout-minutes: 60
         env:
           CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
         run: python sync_videos.py
+
+      # Persist the download archive so already-synced videos are not re-downloaded
+      - name: Commit download archive
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add download_archive.txt
+          git diff --cached --quiet || git commit -m "chore: update download archive [skip ci]"
+          git push
