@@ -1,46 +1,31 @@
-name: YouTube Drive Sync
+name: YouTube Channel Mirror
 
 on:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   sync:
     runs-on: self-hosted
 
     steps:
+      - uses: actions/checkout@v4
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install yt-dlp
+          pip install google-api-python-client
+          pip install google-auth
+          pip install requests
 
-      - name: Run video sync
+      - name: Run mirror
         env:
-          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
-          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
-          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
-        run: |
-          python sync_videos.py
-
-      - name: Commit updated video index
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
-          git add video_ids.json
-          git commit -m "update video index"
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "No changes to commit"
-          }
-          git push
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        run: python sync_videos.py
