@@ -1,6 +1,5 @@
 import os
 import re
-import time
 import yt_dlp
 
 from googleapiclient.discovery import build
@@ -37,54 +36,21 @@ creds = Credentials(
 drive = build("drive", "v3", credentials=creds)
 
 # ==========================================
-# PREPARE FOLDER
+# PREPARE DOWNLOAD FOLDER
 # ==========================================
 
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 # ==========================================
-# REMOVE LOCAL DUPLICATES
-# ==========================================
-
-def remove_duplicate_videos(folder):
-
-    seen_ids = set()
-
-    for file in os.listdir(folder):
-
-        if not file.endswith(".mp4"):
-            continue
-
-        match = re.search(r"\[([A-Za-z0-9_-]{11})\]", file)
-
-        if not match:
-            continue
-
-        video_id = match.group(1)
-
-        filepath = os.path.join(folder, file)
-
-        if video_id in seen_ids:
-
-            print("Duplicate detected, removing:", file)
-
-            os.remove(filepath)
-
-        else:
-
-            seen_ids.add(video_id)
-
-# ==========================================
-# GET EXISTING VIDEOS IN DRIVE
+# CHECK VIDEOS ALREADY IN DRIVE
 # ==========================================
 
 def get_drive_video_ids():
 
-    print("Scanning Google Drive folder...")
-
     ids = set()
-
     page_token = None
+
+    print("Scanning Drive...")
 
     while True:
 
@@ -110,71 +76,36 @@ def get_drive_video_ids():
 
     return ids
 
-# ==========================================
-# DOWNLOAD VIDEOS
-# ==========================================
-
-ydl_opts = {
-    "format": "bestvideo+bestaudio/best",
-    "merge_output_format": "mp4",
-    "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s [%(id)s].%(ext)s",
-    "download_archive": ARCHIVE_FILE,
-    "retries": 10,
-    "fragment_retries": 10,
-}
-
-print("Checking channel for new videos...")
-
-with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-    ydl.download([CHANNEL_URL])
-
-# ==========================================
-# CLEAN DUPLICATES
-# ==========================================
-
-print("Cleaning duplicates...")
-
-remove_duplicate_videos(DOWNLOAD_FOLDER)
-
-# ==========================================
-# DRIVE CHECK
-# ==========================================
 
 drive_ids = get_drive_video_ids()
 
 # ==========================================
-# UPLOAD
+# UPLOAD FUNCTION
 # ==========================================
 
-for file in os.listdir(DOWNLOAD_FOLDER):
+def upload_to_drive(filepath):
 
-    if not file.endswith(".mp4"):
-        continue
+    filename = os.path.basename(filepath)
 
-    match = re.search(r"\[([A-Za-z0-9_-]{11})\]", file)
+    match = re.search(r"\[([A-Za-z0-9_-]{11})\]", filename)
 
-    if not match:
-        continue
+    if match:
 
-    video_id = match.group(1)
+        video_id = match.group(1)
 
-    if video_id in drive_ids:
+        if video_id in drive_ids:
 
-        print("Already in Drive, skipping:", file)
+            print("Already in Drive, skipping:", filename)
+            os.remove(filepath)
+            return
 
-        os.remove(os.path.join(DOWNLOAD_FOLDER, file))
-
-        continue
-
-    filepath = os.path.join(DOWNLOAD_FOLDER, file)
-
-    print("Uploading:", file)
+    print("Uploading:", filename)
 
     media = MediaFileUpload(filepath, resumable=True)
 
     drive.files().create(
         body={
-            "name": file,
+            "name": filename,
             "parents": [DRIVE_FOLDER_ID],
         },
         media_body=media,
@@ -182,6 +113,52 @@ for file in os.listdir(DOWNLOAD_FOLDER):
 
     os.remove(filepath)
 
-    time.sleep(1)
+    print("Upload complete:", filename)
+
+# ==========================================
+# HOOK (UPLOAD AFTER DOWNLOAD)
+# ==========================================
+
+def progress_hook(d):
+
+    if d["status"] == "finished":
+
+        filepath = d["filename"]
+
+        upload_to_drive(filepath)
+
+# ==========================================
+# YT-DLP OPTIONS
+# ==========================================
+
+ydl_opts = {
+
+    # máxima calidad
+    "format": "bestvideo+bestaudio/best",
+
+    "merge_output_format": "mp4",
+
+    # nombre del archivo
+    "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s [%(id)s].%(ext)s",
+
+    # evita duplicados
+    "download_archive": ARCHIVE_FILE,
+
+    # subida automática tras descarga
+    "progress_hooks": [progress_hook],
+
+    "retries": 10,
+    "fragment_retries": 10,
+}
+
+# ==========================================
+# START SYNC
+# ==========================================
+
+print("Checking channel for new videos...")
+
+with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
+    ydl.download([CHANNEL_URL])
 
 print("Mirror sync complete.")
