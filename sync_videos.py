@@ -19,7 +19,10 @@ ARCHIVE_FILE = "download_archive.txt"
 
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
-REFRESH_TOKEN = os.environ["REFRESH_TOKEN"]
+REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
+
+if not REFRESH_TOKEN:
+    raise Exception("REFRESH_TOKEN not provided")
 
 # ==========================================
 # GOOGLE DRIVE AUTH
