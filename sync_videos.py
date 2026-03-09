@@ -78,13 +78,10 @@ ydl_opts = {
     "format": "bestvideo+bestaudio/best",
     "merge_output_format": "mp4",
     "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s [%(id)s].%(ext)s",
-    # Usar el cliente android evita el bot-check de YouTube
-    "extractor_args": {
-        "youtube": {
-            "player_client": ["android"],
-        }
-    },
-    # Sin JS runtime necesario con android client
+    # Lee las cookies directamente del navegador instalado en esta máquina.
+    # Cambiá "chrome" por "firefox" o "edge" si usás otro navegador.
+    # Las cookies se renuevan solas cuando usás YouTube normalmente.
+    "cookiesfrombrowser": ("chrome",),
     "quiet": False,
     "no_warnings": False,
 }
