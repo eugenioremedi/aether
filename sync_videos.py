@@ -8,9 +8,9 @@ CHANNEL_URL = "https://www.youtube.com/@aetherautomation/videos"
 CHANNEL_ID = "UCD8b2ZmXG1xI9kyKZYAu-UQ"  # extraído del log
 DRIVE_FOLDER_ID = "1NqifLrBXJ89eWtzuAW166X7BoRLm2YED"
 
-CLIENT_ID = os.environ["CLIENT_ID"]
-CLIENT_SECRET = os.environ["CLIENT_SECRET"]
-REFRESH_TOKEN = os.environ["REFRESH_TOKEN"]
+CLIENT_ID = os.environ["GDRIVE_CLIENT_ID"]
+CLIENT_SECRET = os.environ["GDRIVE_CLIENT_SECRET"]
+REFRESH_TOKEN = os.environ["GDRIVE_REFRESH_TOKEN"]
 YOUTUBE_API_KEY = os.environ["YOUTUBE_API_KEY"]
 
 DOWNLOAD_FOLDER = "downloads"
