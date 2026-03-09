@@ -81,7 +81,7 @@ ydl_opts = {
     # Lee las cookies directamente del navegador instalado en esta máquina.
     # Cambiá "chrome" por "firefox" o "edge" si usás otro navegador.
     # Las cookies se renuevan solas cuando usás YouTube normalmente.
-    "cookiesfrombrowser": ("chrome",),
+    "cookiesfile": r"C:\actions-runner\youtube_cookies.txt",
     "quiet": False,
     "no_warnings": False,
 }
